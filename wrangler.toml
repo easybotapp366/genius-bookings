@@ -8,9 +8,9 @@ directory = "./public"
 binding = "ASSETS"
 run_worker_first = ["/api/*"]
 
-# After creating D1, replace the placeholder with your real database UUID.
+# Cloudflare D1 database binding for the production Genius Bookings instance.
 [[d1_databases]]
 binding = "DB"
 database_name = "genius-bookings-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "e1bb420c-48a3-4c69-8d0d-b4dea1297c68"
 migrations_dir = "migrations"
