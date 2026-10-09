@@ -54,3 +54,35 @@ document.getElementById('verify-form').addEventListener('submit',async event=>{
  }
  document.getElementById('verify-password').value='';
 });
+
+
+document.getElementById('check-cloudflare').addEventListener('click',async()=>{
+ const button=document.getElementById('check-cloudflare');
+ const notice=document.getElementById('cloudflare-check-result');
+ const hash=document.getElementById('verify-hash').value.trim();
+ notice.textContent='';
+ if(!/^pbkdf2_sha256\$\d+\$[^$]+\$[^$]+$/.test(hash)){
+   notice.textContent='الصق الـHash كاملًا في الخانة اللي فوق الأول.';return;
+ }
+ if(!window.isSecureContext||!crypto?.subtle){
+   notice.textContent='لازم تفتح الصفحة من HTTPS.';return;
+ }
+ button.disabled=true;notice.textContent='جاري مقارنة البصمة المحفوظة في Cloudflare...';
+ try{
+   const bytes=new TextEncoder().encode(hash);
+   const digest=await crypto.subtle.digest('SHA-256',bytes);
+   const fingerprint=Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
+   const response=await fetch('/api/setup/hash-check',{
+     method:'POST',credentials:'omit',cache:'no-store',
+     headers:{'Content-Type':'application/json','Accept':'application/json'},
+     body:JSON.stringify({fingerprint})
+   });
+   const data=await response.json();
+   if(data.code==='SECRET_MATCH')notice.textContent='✅ الـHash الموجود على Cloudflare مطابق تمامًا. لو الدخول لسه بيرفض، هنراجع مسار التحقق نفسه.';
+   else if(data.code==='SECRET_MISMATCH')notice.textContent='❌ الـHash الموجود على Cloudflare مختلف عن اللي لصقته هنا. اضغط Edit للـSecret واحفظ نفس القيمة كاملة في Production، ثم Deploy.';
+   else if(data.code==='RATE_LIMITED')notice.textContent='محاولات الفحص كثيرة. انتظر 15 دقيقة.';
+   else notice.textContent='تعذر الفحص: '+(data.error||('HTTP '+response.status));
+ }catch{
+   notice.textContent='تعذر الاتصال. تأكد إن آخر نسخة من GitHub اتنشرت على Cloudflare.';
+ }finally{button.disabled=false;}
+});
