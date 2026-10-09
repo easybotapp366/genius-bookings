@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17243d">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="description" content="نظام حجوزات خاص وآمن بقاعدة بيانات مستقلة وتسجيل دخول بكلمة مرور">
+  <title>Genius Bookings | إدارة الحجوزات</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' rx='18' fill='%2317243d'/%3E%3Ctext x='40' y='56' font-size='49' text-anchor='middle'%3E%F0%9F%93%85%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" aria-label="التنقل الرئيسي">
+    <div class="brand"><span class="brand-icon">G</span><div><strong>Genius<span>Bookings</span></strong><small>نظام إدارة المواعيد</small></div></div>
+    <p class="aside-title">لوحة الإدارة</p>
+    <button class="nav-button is-active" type="button" data-nav="dashboard"><span>▦</span> الداشبورد</button>
+    <button class="nav-button" type="button" data-nav="bookings"><span>▤</span> كل الحجوزات</button>
+    <button class="nav-button" type="button" data-nav="archive"><span>⌫</span> أرشيف الحذف</button>
+    <div class="aside-bottom"><div class="privacy-badge"><span class="secure-dot"></span> البيانات في قاعدة بيانات خاصة</div><p>بيانات العملاء لا تُحفظ على GitHub، ولا تظهر إلا بعد تسجيل الدخول.</p><button type="button" class="sidebar-settings" id="logoutBtn">⎋ تسجيل الخروج</button></div>
+  </aside>
+  <main class="main-content">
+    <header class="topbar">
+      <div class="heading-group"><span class="eyebrow">إدارة أعمالك بسهولة</span><h1 id="pageTitle">لوحة الحجوزات</h1><p id="pageSubtitle">كل المواعيد والأرقام المهمة في مكان واحد</p></div>
+      <div class="top-actions"><span id="connectionTag" class="connection-tag"><span class="status-pulse"></span> جاري التحقق</span><button class="icon-button" title="تحديث البيانات" id="refreshBtn" type="button" aria-label="تحديث البيانات">↻</button><button class="primary-button top-add" type="button" data-new-booking>+ حجز جديد</button></div>
+    </header>
+    
+    <section id="screen-dashboard" class="screen">
+      <div class="welcome-panel"><div><span class="welcome-tag">حجوزات السنة</span><h2>يومك منظم، وكل حجز في مكانه ✨</h2><p>تابع مواعيدك وفلوس العربون والمتبقي بضغطة واحدة.</p><div class="welcome-actions"><button class="welcome-add" data-new-booking type="button">+ إضافة حجز جديد</button><button class="welcome-outline" type="button" data-nav="bookings">عرض الحجوزات ←</button></div></div><div class="calendar-illustration" aria-hidden="true"><div class="illus-top"><span></span><span></span></div><div class="illus-title">2027</div><div class="illus-grid"><b>✓</b><i></i><i></i><i></i><b>•</b><i></i><i></i><i></i><b>✓</b></div></div></div>
+      <div class="section-bar"><div><h2>نظرة سريعة</h2><p>إحصائيات سنة <strong id="metricYear">2027</strong></p></div><div class="year-select"><label for="yearSelect">السنة</label><select id="yearSelect" aria-label="اختيار السنة"><option>2027</option></select><button type="button" class="outlined-button compact" id="addYearBtn">+ سنة</button></div></div>
+      <div class="stats-grid">
+        <article class="stat-card"><div class="stat-head"><span>إجمالي الحجوزات</span><span class="stat-symbol blue">▦</span></div><strong id="statBookings">—</strong><small>الحجوزات غير الملغية خلال السنة</small></article>
+        <article class="stat-card"><div class="stat-head"><span>العربون المستلم</span><span class="stat-symbol green">ج.م</span></div><strong id="statDeposits">—</strong><small>إجمالي العربون المُسجل</small></article>
+        <article class="stat-card"><div class="stat-head"><span>المتبقي للتحصيل</span><span class="stat-symbol amber">◷</span></div><strong id="statRemaining">—</strong><small>المبالغ المتبقية على العملاء</small></article>
+        <article class="stat-card"><div class="stat-head"><span>حجوزات النهارده</span><span class="stat-symbol rose">◉</span></div><strong id="statToday">—</strong><small id="todayLabel">حسب توقيت القاهرة</small></article>
+      </div>
+      <div class="dashboard-grid">
+        <section class="panel"><div class="panel-header"><div><h3>الحجوزات خلال السنة</h3><p>عدد الحجوزات في كل شهر</p></div><span class="mini-caption">اضغط على شهر لعرض الحجوزات</span></div><div id="monthlyBars" class="monthly-bars"></div></section>
+        <section class="panel upcoming-panel"><div class="panel-header"><div><h3>المواعيد القادمة</h3><p>أقرب الحجوزات في الأيام الجاية</p></div><button class="text-button" data-nav="bookings">الكل ←</button></div><div id="upcomingList" class="upcoming-list"></div></section>
+      </div>
+    </section>
+    <section id="screen-bookings" class="screen hidden">
+      <div class="toolbar panel"><div class="search-wrap"><span>⌕</span><input id="searchInput" type="search" autocomplete="off" placeholder="ابحث بالاسم أو رقم الهاتف أو رقم الحجز..."></div><div class="filter-wrap"><select id="monthSelect" aria-label="فلتر الشهر"><option value="all">كل الشهور</option></select><select id="statusSelect" aria-label="حالة الحجز"><option value="all">كل الحالات</option><option value="Confirmed">مؤكد</option><option value="Pending">قيد التأكيد</option><option value="Completed">مكتمل</option><option value="Cancelled">ملغي</option></select><button type="button" class="outlined-button" id="todayFilterBtn">النهارده</button></div></div>
+      <div class="list-caption"><div><h2>قائمة الحجوزات</h2><p id="bookingCountLabel">لا توجد بيانات بعد</p></div><button type="button" class="primary-button" data-new-booking>+ إضافة حجز</button></div>
+      <div id="bookingsList" class="booking-list"></div>
+    </section>
+    <section id="screen-archive" class="screen hidden">
+      <div class="archive-explainer"><strong>🗄️ أرشيف الحجوزات المحذوفة</strong><span>حفظ نسخة من الحجز قبل إزالته من جدول المواعيد. الأرشيف ليس إيصال استرداد عربون.</span></div>
+      <div class="toolbar panel"><div class="search-wrap"><span>⌕</span><input type="search" id="archiveSearchInput" placeholder="ابحث داخل الحجوزات المحذوفة"></div></div>
+      <div class="import-strip"><button type="button" class="outlined-button" id="importDataBtn">⬆ استيراد الحجوزات القديمة من ملف خاص</button><span>الملف يُرفع لقاعدة بياناتك فقط، مش على GitHub.</span></div><div id="archiveList" class="booking-list"></div>
+    </section>
+    <footer class="app-footer"><span>Genius Bookings • توقيت القاهرة</span><span>البيانات محفوظة في قاعدة بيانات خاصة</span></footer>
+  </main>
+</div>
+<nav class="mobile-nav" aria-label="التنقل على الموبايل"><button type="button" data-nav="dashboard" class="is-active"><span>▦</span>الرئيسية</button><button type="button" data-nav="bookings"><span>▤</span>الحجوزات</button><button class="mobile-plus" type="button" data-new-booking aria-label="إضافة حجز">+</button><button type="button" data-nav="archive"><span>⌫</span>المحذوفة</button><button type="button" id="mobileSettings"><span>⎋</span>خروج</button></nav>
+
+<div class="overlay hidden" id="authOverlay" aria-modal="true" role="dialog" aria-labelledby="authTitle">
+  <div class="modal setup-modal centered">
+    <span class="large-emoji">🔐</span><h2 id="authTitle">تسجيل دخول Genius Bookings</h2>
+    <p>حجوزاتك خاصة، ادخل بكلمة المرور علشان تفتح برنامج الإدارة.</p>
+    <form id="loginForm" autocomplete="on">
+      <label class="field"><span>كلمة المرور</span><input class="input" id="passwordInput" name="password" type="password" autocomplete="current-password" required minlength="1" placeholder="أدخل كلمة المرور" /></label>
+      <p class="form-error hidden" role="alert" id="authError"></p>
+      <button type="submit" class="primary-button block" id="loginBtn">دخول للبرنامج</button>
+    </form>
+    <p class="help-text center">كلمة المرور لا تُحفظ في ملفات الموقع أو المتصفح. الجلسة تنتهي تلقائيًا.</p>
+  </div>
+</div>
+<div class="overlay hidden" id="importOverlay" aria-modal="true" role="dialog" aria-labelledby="importTitle"><div class="modal setup-modal">
+ <div class="modal-head"><h2 id="importTitle">استيراد الحجوزات القديمة</h2><button class="close-button" type="button" id="closeImport" aria-label="إغلاق">×</button></div>
+ <p>اختار ملف JSON الخاص اللي اتصدر من Google Sheets. البيانات لا تُرسل إلى GitHub؛ هتُحفظ في قاعدة D1 بعد المراجعة.</p>
+ <label class="field"><span>ملف النسخة الاحتياطية</span><input id="importFile" class="input" type="file" accept=".json,application/json"></label>
+ <p id="importPreview" class="help-text"></p><p class="form-error hidden" id="importError" role="alert"></p>
+ <div class="form-actions"><button type="button" class="outlined-button" id="cancelImport">إلغاء</button><button type="button" class="primary-button" id="confirmImport" disabled>تأكيد الاستيراد</button></div>
+</div></div>
+<div class="overlay hidden" id="bookingOverlay" aria-modal="true" role="dialog" aria-labelledby="formTitle"><div class="modal booking-modal"><div class="modal-head"><div><span class="eyebrow" id="formEyebrow">حجز جديد</span><h2 id="formTitle">إضافة حجز</h2></div><button type="button" class="close-button" data-close-form aria-label="إغلاق">×</button></div><form id="bookingForm"><div class="fields-grid"><label class="field"><span>اسم العميل *</span><input name="name" required maxlength="100" autocomplete="name" placeholder="مثال: مريم"></label><label class="field"><span>رقم الهاتف</span><input name="phone" type="tel" maxlength="60" placeholder="01xxxxxxxxx"></label><label class="field full"><span>العنوان</span><input name="address" maxlength="250" placeholder="المكان أو العنوان التفصيلي"></label><label class="field full"><span>Brushing / الخدمة</span><input name="brushing" maxlength="200" placeholder="نوع الخدمة أو تفاصيلها"></label><label class="field"><span>تاريخ الحجز *</span><input name="date" type="date" min="2027-01-01" max="2100-12-31" required></label><label class="field"><span>الحالة</span><select name="status"><option value="Confirmed">مؤكد</option><option value="Pending">قيد التأكيد</option><option value="Completed">مكتمل</option><option value="Cancelled">ملغي</option></select></label><label class="field"><span>الوقت من *</span><input name="start" type="time" required></label><label class="field"><span>الوقت إلى *</span><input name="end" type="time" required></label><label class="field"><span>العربون (جنيه)</span><input name="deposit" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"></label><label class="field"><span>المتبقي (جنيه)</span><input name="remaining" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"></label></div><div class="total-preview"><span>إجمالي قيمة الحجز</span><strong id="formTotal">0 ج.م</strong></div><div id="formError" class="form-error hidden" role="alert"></div><div class="form-actions"><button type="button" class="outlined-button" data-close-form>إلغاء</button><button class="primary-button" type="submit" id="saveBookingBtn">حفظ الحجز</button></div></form></div></div>
+<div class="overlay hidden" id="deleteOverlay" aria-modal="true" role="dialog" aria-labelledby="deleteTitle"><div class="modal delete-modal"><div class="delete-icon">🗑️</div><h2 id="deleteTitle">حذف الحجز؟</h2><p id="deleteDesc"></p><label class="field"><span>سبب الإلغاء أو الحذف (اختياري)</span><input id="deleteReason" maxlength="250" placeholder="مثال: العميل ألغى الموعد"></label><div class="warning-note">هيتم حفظ نسخة في «أرشيف الحذف» قبل إزالة الحجز. ده مش معناه إن العربون اترجع للعميل.</div><div class="form-actions"><button type="button" class="outlined-button" id="cancelDelete">رجوع</button><button type="button" class="danger-button" id="confirmDelete">تأكيد الحذف</button></div></div></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+<div id="loadingOverlay" class="loading-overlay hidden"><div class="spinner"></div><span id="loadingLabel">جاري تحميل البيانات...</span></div>
+</body>
+</html>

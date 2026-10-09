@@ -12,3 +12,15 @@
 .toast{pointer-events:none}
 /* Toasts are notifications, never overlays over mobile action buttons. */
 .toast{pointer-events:none}
+/* Private D1 login / import states */
+#loginForm {width:100%;display:grid;gap:14px;margin-top:16px;text-align:right}
+#loginForm .field {width:100%;display:grid;gap:8px}
+#loginForm .input {width:100%;min-height:48px}
+#authOverlay {z-index:500}
+#authOverlay .modal {padding:28px 24px}
+#authError {width:100%;margin:0 0 8px}
+.import-strip {display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:12px 0 18px}
+.import-strip>span {font-size:12px;color:var(--muted)}
+.restore-button {background:#f0faf4;color:#087b58;border:1px solid #b6e3cc;padding:7px 14px;border-radius:9px;font-size:12px}
+#passwordInput {direction:ltr;text-align:left}
+#confirmImport:disabled{opacity:.45}

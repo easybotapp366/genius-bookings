@@ -1,10 +1,10 @@
 {
   "name": "Genius Bookings — نظام الحجوزات",
   "short_name": "Genius Bookings",
-  "description": "إدارة الحجوزات والعربون والمواعيد باستخدام Google Sheets",
+  "description": "إدارة الحجوزات والعربون والمواعيد بقاعدة بيانات آمنة",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "./",
+  "start_url": "/",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f6fb",

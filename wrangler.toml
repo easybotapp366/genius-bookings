@@ -1,0 +1,16 @@
+name = "genius-bookings"
+main = "src/worker.js"
+compatibility_date = "2026-10-09"
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+# After creating D1, replace the placeholder with your real database UUID.
+[[d1_databases]]
+binding = "DB"
+database_name = "genius-bookings-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"

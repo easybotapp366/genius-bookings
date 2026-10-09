@@ -1,0 +1,12 @@
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+private-migration/
+*.db
+*.sqlite
+*.sqlite3
+.DS_Store
