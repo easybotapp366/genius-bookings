@@ -54,7 +54,7 @@ async function checkPassword(candidate, stored){
     const key=await crypto.subtle.importKey('raw',encoder.encode(candidate),'PBKDF2',false,['deriveBits']);
     const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:parsed.salt,iterations:parsed.iterations},key,256);
     return timingEqual(new Uint8Array(bits),parsed.expected);
-  }catch{return false;}
+  }catch{throw new Error('PASSWORD_CRYPTO_ERROR');}
 }
 function assertOrigin(request){
   const origin=request.headers.get('Origin');
@@ -124,7 +124,13 @@ async function login(request,env){
   const ipKey=await sha('login:'+clientIp+':'+configured);
   const attempt=await readSessionLoginAttempts(env,ipKey);
   if(!attempt.allowed)return response({error:'محاولات كثيرة. حاول بعد قليل',code:'RATE_LIMITED'},429,{'Retry-After':String(Math.max(1,attempt.waitSec))});
-  const valid=await checkPassword(password,configured);
+  let valid;
+  try{valid=await checkPassword(password,configured);}
+  catch{
+    // Do not report cryptographic runtime failures as an incorrect password.
+    // Never log plaintext credentials or their stored hashes.
+    return error('فيه مشكلة تقنية أثناء فحص كلمة المرور على Cloudflare. أبلغ المسؤول بكود الخطأ فقط',503,'PASSWORD_CRYPTO_ERROR');
+  }
   if(!valid){
     const n=attempt.failCount+1,now=Date.now();
     await env.DB.prepare(`INSERT INTO login_attempts(attempt_key,fail_count,window_start,blocked_until) VALUES(?,?,?,?) ON CONFLICT(attempt_key) DO UPDATE SET fail_count=excluded.fail_count,window_start=excluded.window_start,blocked_until=excluded.blocked_until`).bind(ipKey,n,now,n>=5?now+15*60000:0).run();
