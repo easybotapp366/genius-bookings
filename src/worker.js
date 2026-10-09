@@ -34,7 +34,7 @@ function randomToken(bytes=32){return Array.from(crypto.getRandomValues(new Uint
 function hex(a){return Array.from(new Uint8Array(a),x=>x.toString(16).padStart(2,'0')).join('');}
 async function sha(s){return hex(await crypto.subtle.digest('SHA-256',encoder.encode(s)));}
 function b64ToBytes(str){return Uint8Array.from(atob(str),c=>c.charCodeAt(0));}
-function timingEqual(a,b){if(a.length!==b.length)return false;if(typeof crypto.subtle.timingSafeEqual==='function')return crypto.subtle.timingSafeEqual(a,b);let diff=0;for(let i=0;i<a.length;i++)diff|=a[i]^b[i];return diff===0;}
+function timingEqual(a,b){if(a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a[i]^b[i];return diff===0;}
 // Distinguish malformed Cloudflare Secret from a wrong password.
 function parsePasswordHash(stored){
   const parts=String(stored??'').trim().split('$');
