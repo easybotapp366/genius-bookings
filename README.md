@@ -18,6 +18,22 @@
 
 الربط بـ GitHub يتيح تعديل الكود لكنه **لا ينشئ حساب Cloudflare أو قاعدة D1 أو كلمة المرور**. الخطوات التالية تُنفَّذ على حساب Cloudflare. لا ترسل كلمة مرورك في المحادثة أو في GitHub.
 
+## إصلاح مشكلة PASSWORD_CRYPTO_ERROR (2026-10-09)
+
+Cloudflare Workers في **الإنتاج** لا يسمح بتنفيذ PBKDF2 بأكثر من **100,000** دورة في العملية الواحدة، بينما النسخ القديمة من Genius Bookings كانت تولّد `pbkdf2_sha256$310000$` وتفشل عند تسجيل الدخول في Cloudflare رغم نجاح الاختبار المحلي.
+
+**الإصدار الجديد يولّد ويقبل `pbkdf2_sha256$100000$` فقط.** البصمة القديمة ستُرفض بشكل واضح بـ`PASSWORD_HASH_CONFIG_INVALID` حتى تغيّر إعداد `ADMIN_PASSWORD_HASH`. التغيير لا يحذف بيانات D1.
+
+خطوات تصحيح الإعداد لمرة واحدة:
+1. انتظر نشر أحدث إصدار من فرع `main` في Cloudflare Workers.
+2. افتح `/password-setup.html` من رابط `workers.dev` الفعلي وحدّث الصفحة.
+3. أنشئ **كلمة مرور جديدة عشوائية وطويلة (20 حرفًا أو أكثر مستحسن)**، لأن كلمة المرور القديمة ظهرت في المحادثة. لا تشاركها أو تشارك بصمتها.
+4. ولّد البصمة الجديدة محليًا، ولاحظ أنها تبدأ بـ `pbkdf2_sha256$100000$`.
+5. افتح Worker → Settings → Variables and Secrets → Production، **عدّل** `ADMIN_PASSWORD_HASH` الموجود والصق البصمة الجديدة كاملة ثم Deploy.
+6. جرّب الدخول مرة واحدة فقط، وتأكد أن الحجز التجريبي يحفظ ويظهر قبل إدخال بيانات حقيقية.
+
+**تنبيه أمني:** الحد الأقصى 100,000 أقل من توصيات PBKDF2 الحديثة. لنظام مدير واحد استخدم كلمة مرور عشوائية قوية جدًا، HTTPS، Rate limit، وفعّل MFA لحساب Cloudflare. للتوسع في عدة مستخدمين، يفضل الاعتماد على مزود هوية متخصص أو حل KDF أقوى مدعوم في بيئة التشغيل.
+
 ## تفعيل Cloudflare لأول مرة (من الكمبيوتر أو Cloudflare Dashboard)
 
 1. افتح [Cloudflare Dashboard](https://dash.cloudflare.com/). من **Workers & Pages / D1 SQL Database** أنشئ قاعدة باسم `genius-bookings-db` واحصل على **Database ID** (UUID).
@@ -66,7 +82,7 @@ npx wrangler secret put ADMIN_PASSWORD_HASH
 ## تطوير واختبارات
 
 ```bash
-npm test                     # Node 22 + SQLite memory mock (4 automated API suites)
+npm test                     # Node 22 + SQLite memory mock, Cloudflare PBKDF2 regression tests
 python tests/test_ui.py       # اختبار واجهة على Chromium/Playwright بمحاكاة API؛ بدون بيانات عملاء
 npm run db:local
 npm run dev

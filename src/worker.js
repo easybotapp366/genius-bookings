@@ -6,6 +6,8 @@
 const encoder = new TextEncoder();
 const STATUSES = new Set(['Confirmed', 'Pending', 'Completed', 'Cancelled']);
 const SESSION_SECONDS = 8 * 60 * 60;
+// Cloudflare production Workers reject PBKDF2 above 100,000 rounds.
+const WORKER_PBKDF2_ITERATIONS = 100000;
 const PAGE_LIMIT = 250;
 const MAX_IMPORT_ITEMS = 500;
 const MAX_JSON_BYTES = 700_000;
@@ -40,7 +42,7 @@ function parsePasswordHash(stored){
   const parts=String(stored??'').trim().split('$');
   if(parts.length!==4||parts[0]!=='pbkdf2_sha256'||!/^[0-9]+$/.test(parts[1]))return null;
   const iterations=Number(parts[1]);
-  if(!Number.isSafeInteger(iterations)||iterations<210000||iterations>2000000)return null;
+  if(!Number.isSafeInteger(iterations)||iterations!==WORKER_PBKDF2_ITERATIONS)return null;
   try{
     const salt=b64ToBytes(parts[2]),expected=b64ToBytes(parts[3]);
     if(salt.length<16||salt.length>64||expected.length!==32)return null;
@@ -118,7 +120,7 @@ async function readSessionLoginAttempts(env,ipKey){
 async function login(request,env){
   const configured=String(env.ADMIN_PASSWORD_HASH??'').trim();
   if(!configured)return error('لم يتم إعداد كلمة مرور الإدارة على السيرفر بعد',503,'SETUP_REQUIRED');
-  if(!parsePasswordHash(configured))return error('بصمة كلمة المرور في Cloudflare غير صالحة. ولّد بصمة جديدة واحفظها في Production Secret باسم ADMIN_PASSWORD_HASH',503,'PASSWORD_HASH_CONFIG_INVALID');
+  if(!parsePasswordHash(configured))return error('بصمة Cloudflare غير مدعومة: الموقع يحتاج PBKDF2 بـ 100000 دورة فقط. افتح password-setup.html وولّد بصمة جديدة ثم احفظها في ADMIN_PASSWORD_HASH على Production',503,'PASSWORD_HASH_CONFIG_INVALID');
   const input=await jsonBody(request), password=String(input.password||'');
   const clientIp=request.headers.get('CF-Connecting-IP')||'unknown';
   const ipKey=await sha('login:'+clientIp+':'+configured);

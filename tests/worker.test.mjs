@@ -29,7 +29,7 @@ function dbMock(){
    sqlite
  };
 }
-function envMock(){const salt=randomBytes(16), hash=pbkdf2Sync('Secure*P@ssword1234',salt,310000,32,'sha256');return {DB:dbMock(),ADMIN_PASSWORD_HASH:`pbkdf2_sha256$310000$${salt.toString('base64')}$${hash.toString('base64')}`,ASSETS:{fetch:async()=>new Response('hello',{headers:{'Content-Type':'text/html'}})}};}
+function envMock(){const salt=randomBytes(16), hash=pbkdf2Sync('Secure*P@ssword1234',salt,100000,32,'sha256');return {DB:dbMock(),ADMIN_PASSWORD_HASH:`pbkdf2_sha256$100000$${salt.toString('base64')}$${hash.toString('base64')}`,ASSETS:{fetch:async()=>new Response('hello',{headers:{'Content-Type':'text/html'}})}};}
 async function api(env,path,method='GET',body=null,cookie='',csrf='',origin=root){
  const headers={};if(cookie)headers.Cookie=cookie;if(method!=='GET')headers.Origin=origin;if(csrf)headers['X-CSRF-Token']=csrf;if(body!==null)headers['Content-Type']='application/json';
  const req=new Request(root+path,{method,headers,body:body===null?undefined:JSON.stringify(body)});
@@ -83,6 +83,22 @@ test('rate-limited setup diagnostic confirms only a hash fingerprint without tra
  assert.equal(r.status,422);
  for(let i=1;i<5;i++)assert.equal((await api(env,'/api/setup/hash-check','POST',{fingerprint:'1'.repeat(64)})).status,409);
  assert.equal((await api(env,'/api/setup/hash-check','POST',{fingerprint})).status,429);
+});
+
+test('Cloudflare production PBKDF2 cap rejects a legacy 310k hash before KDF',async()=>{
+ const env=envMock();
+ env.ADMIN_PASSWORD_HASH=env.ADMIN_PASSWORD_HASH.replace('$100000$','$310000$');
+ const r=await api(env,'/api/login','POST',{password:'Secure*P@ssword1234'});
+ assert.equal(r.status,503);
+ assert.equal(r.data.code,'PASSWORD_HASH_CONFIG_INVALID');
+});
+
+test('password generators and Node CLI use compatible Cloudflare 100k cost',()=>{
+ for(const path of ['public/password-setup.js','public/setup-password.js','scripts/hash-password.mjs']){
+  const source=readFileSync(resolve(base,path),'utf8');
+  assert.match(source,/100000/);
+  assert.doesNotMatch(source,/310000/);
+ }
 });
 
 test('create, overlap, update, cancellation, archive and restore with optimistic version',async()=>{

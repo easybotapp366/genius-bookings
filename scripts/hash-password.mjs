@@ -9,11 +9,12 @@ const password = process.stdin.isTTY
       finally {rl.close();}
     })
   : readFileSync(0, 'utf8').replace(/\r?\n$/, '');
-if (password.length < 14 || password.length > 200) {
-  console.error('Password must be between 14 and 200 characters.');
+if (password.length < 18 || password.length > 200) {
+  console.error('Password must be between 18 and 200 characters.');
   process.exitCode = 1;
 } else {
-  const rounds = 310000;
+  // Cloudflare production PBKDF2 max iterations per invocation.
+  const rounds = 100000;
   const salt = randomBytes(24);
   const digest = pbkdf2Sync(password, salt, rounds, 32, 'sha256');
   console.log(`pbkdf2_sha256$${rounds}$${salt.toString('base64')}$${digest.toString('base64')}`);

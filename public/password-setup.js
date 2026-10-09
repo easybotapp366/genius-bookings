@@ -9,14 +9,14 @@ form.addEventListener('submit',async event=>{
  event.preventDefault();out.hidden=true;textarea.value='';message.textContent='';
  const pass=document.getElementById('password').value;
  const confirm=document.getElementById('confirm').value;
- if(pass.length<14||pass.length>200||pass!==confirm){message.textContent='راجع كلمة المرور والتأكيد؛ الطول لازم يكون من 14 إلى 200 حرف ومتطابقين.';return;}
+ if(pass.length<18||pass.length>200||pass!==confirm){message.textContent='راجع كلمة المرور والتأكيد؛ الطول لازم يكون من 18 إلى 200 حرف ومتطابقين.';return;}
  if(!window.isSecureContext||!crypto?.subtle){message.textContent='لازم تفتح الأداة من رابط HTTPS آمن.';return;}
  generate.disabled=true;generate.textContent='جاري التوليد...';
  try{
   const encoder=new TextEncoder();const salt=crypto.getRandomValues(new Uint8Array(24));
   const key=await crypto.subtle.importKey('raw',encoder.encode(pass),'PBKDF2',false,['deriveBits']);
-  const derived=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:310000,hash:'SHA-256'},key,256);
-  textarea.value='pbkdf2_sha256$310000$'+base64(salt)+'$'+base64(new Uint8Array(derived));
+  const derived=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'},key,256);
+  textarea.value='pbkdf2_sha256$100000$'+base64(salt)+'$'+base64(new Uint8Array(derived));
   out.hidden=false;
   document.getElementById('password').value='';document.getElementById('confirm').value='';
   message.textContent='تم التوليد على جهازك. انسخ قيمة الإعداد إلى Cloudflare ثم امسحها من الشاشة.';
@@ -36,8 +36,8 @@ document.getElementById('verify-form').addEventListener('submit',async event=>{
  const stored=document.getElementById('verify-hash').value.trim();
  notice.textContent='جاري التحقق على جهازك...';
  const p=stored.split('$');
- if(p.length!==4||p[0]!=='pbkdf2_sha256'||p[1]!=='310000'){
-  notice.textContent='بصمة غير صالحة. لازم تبدأ بـ pbkdf2_sha256$310000$.';
+ if(p.length!==4||p[0]!=='pbkdf2_sha256'||p[1]!=='100000'){
+  notice.textContent='بصمة غير صالحة. لازم تبدأ بـ pbkdf2_sha256$100000$.';
   return;
  }
  try{
@@ -45,7 +45,7 @@ document.getElementById('verify-form').addEventListener('submit',async event=>{
   const expected=Uint8Array.from(atob(p[3]),c=>c.charCodeAt(0));
   if(salt.length<16||expected.length!==32)throw new Error('bad format');
   const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);
-  const actual=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:310000,hash:'SHA-256'},key,256));
+  const actual=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'},key,256));
   let difference=0;
   for(let i=0;i<actual.length;i++)difference|=actual[i]^expected[i];
   notice.textContent=difference===0?'✅ كلمة المرور تطابق هذه البصمة. انسخها كاملة إلى Cloudflare Secret ثم احفظها.':'❌ كلمة المرور لا تطابق البصمة. ولّد بصمة جديدة من نفس كلمة المرور.';
@@ -99,7 +99,7 @@ document.getElementById('login-verified').addEventListener('click',async()=>{
   const parts=rawHash.split('$');
   if(parts.length!==4||parts[0]!=='pbkdf2_sha256'||!/^[0-9]+$/.test(parts[1]))throw new Error('الصق الـHash الكامل الأول.');
   const iterations=Number(parts[1]);
-  if(iterations<210000||iterations>2000000||!Number.isSafeInteger(iterations)||!pass)throw new Error('اكتب الباسورد والـHash الصحيح.');
+  if(iterations!==100000||!Number.isSafeInteger(iterations)||!pass)throw new Error('اكتب الباسورد والـHash الصحيح.');
   const salt=Uint8Array.from(atob(parts[2]),c=>c.charCodeAt(0));
   const expected=Uint8Array.from(atob(parts[3]),c=>c.charCodeAt(0));
   if(salt.length<16||expected.length!==32)throw new Error('الـHash غير صالح.');

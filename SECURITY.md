@@ -8,3 +8,6 @@
 - One shared administrator password is supported initially. Do not share it with a team; add individual accounts and 2FA if multiple users are needed.
 - Keep independent D1 backups. Booking archive is not a replacement for encrypted off-site backups.
 - This repository is not a substitute for a production penetration test or security audit.
+
+- Production Cloudflare Workers hard-limits PBKDF2 deriveBits to 100,000 iterations. Both the generator and backend are configured for 100k and reject the old 310k hash as incompatible. Use a unique 20+ character random password and Cloudflare MFA, as 100k is below current password KDF guidelines.
+- Rotate the disclosed old admin password via Cloudflare Production Secret `ADMIN_PASSWORD_HASH`; never save a plaintext password or hash in the public repository.
