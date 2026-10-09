@@ -18,5 +18,6 @@ jobs:
           node --check src/worker.js
           node --check public/app.js
           node --check public/setup-password.js
+          node --check public/password-setup.js
       - name: Unit and API tests
         run: npm test
