@@ -56,6 +56,21 @@ test('unauthenticated reads, CSRF, same-origin writes and brute-force lockout ar
  assert.equal((await api(env,'/api/login','POST',{password:'Secure*P@ssword1234'})).status,429);
 });
 
+test('password setup distinguishes malformed Secret from invalid credentials, and trims accidental whitespace',async()=>{
+ const env=envMock();
+ const correct=env.ADMIN_PASSWORD_HASH;
+ env.ADMIN_PASSWORD_HASH='  malformed Secret  ';
+ let r=await api(env,'/api/login','POST',{password:'Secure*P@ssword1234'});
+ assert.equal(r.status,503);
+ assert.equal(r.data.code,'PASSWORD_HASH_CONFIG_INVALID');
+ env.ADMIN_PASSWORD_HASH='  '+correct+'\n';
+ r=await api(env,'/api/login','POST',{password:'Secure*P@ssword1234'});
+ assert.equal(r.status,200,JSON.stringify(r.data));
+ const invalid=await api(env,'/api/login','POST',{password:'incorrect'});
+ assert.equal(invalid.status,401);
+ assert.equal(invalid.data.code,'INVALID_CREDENTIALS');
+});
+
 test('create, overlap, update, cancellation, archive and restore with optimistic version',async()=>{
  const env=envMock();const {cookie,csrf}=await login(env);
  assert.equal((await api(env,'/api/bookings','POST',booking,cookie)).status,403);
