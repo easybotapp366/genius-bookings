@@ -136,6 +136,30 @@ async function login(request,env){
   await env.DB.prepare('INSERT INTO admin_sessions(token_hash,csrf_token,credential_tag,created_at,expires_at) VALUES(?,?,?,?,?)').bind(await sha(token),csrf,await sha(configured),now,now+SESSION_SECONDS*1000).run();
   return response({ok:true,csrf,expiresAt:now+SESSION_SECONDS*1000},200,{'Set-Cookie':sessionCookie(token,request,SESSION_SECONDS)});
 }
+// TEMPORARY setup diagnostic: accepts only SHA-256 fingerprint of a proposed
+// PBKDF2 hash (never the hash or password). Remove once migration is complete.
+// Throttled like login, scoped to current secret and requesting IP.
+async function checkSecretFingerprint(request, env){
+  const configured=String(env.ADMIN_PASSWORD_HASH??'').trim();
+  if(!configured)return error('لم يتم إعداد كلمة مرور الإدارة بعد',503,'SETUP_REQUIRED');
+  if(!parsePasswordHash(configured))return error('بصمة الإدارة في Cloudflare غير صالحة',503,'PASSWORD_HASH_CONFIG_INVALID');
+  const payload=await jsonBody(request), fingerprint=String(payload?.fingerprint??'').toLowerCase();
+  if(!/^[0-9a-f]{64}$/.test(fingerprint))return error('بيانات فحص البصمة غير صحيحة',422,'INVALID_FINGERPRINT');
+  const ip=request.headers.get('CF-Connecting-IP')||'unknown';
+  const ipKey=await sha('setup-check:'+ip+':'+configured);
+  const attempt=await readSessionLoginAttempts(env,ipKey);
+  if(!attempt.allowed)return response({error:'فحوصات كثيرة؛ حاول بعد 15 دقيقة',code:'RATE_LIMITED'},429,{'Retry-After':String(Math.max(1,attempt.waitSec))});
+  const configuredFingerprint=await sha(configured);
+  const matches=timingEqual(encoder.encode(fingerprint),encoder.encode(configuredFingerprint));
+  if(matches){
+    await env.DB.prepare('DELETE FROM login_attempts WHERE attempt_key=?').bind(ipKey).run();
+    return response({matches:true,code:'SECRET_MATCH'});
+  }
+  const now=Date.now(),n=attempt.failCount+1;
+  await env.DB.prepare('INSERT INTO login_attempts(attempt_key,fail_count,window_start,blocked_until) VALUES(?,?,?,?) ON CONFLICT(attempt_key) DO UPDATE SET fail_count=excluded.fail_count,window_start=excluded.window_start,blocked_until=excluded.blocked_until').bind(ipKey,n,now,n>=5?now+15*60000:0).run();
+  return response({matches:false,code:'SECRET_MISMATCH',error:'الـHash الموجود على Cloudflare مختلف عن البصمة اللي عندك'},409);
+}
+
 function parsePagination(u){const offset=Number(u.searchParams.get('offset')||0),limit=Number(u.searchParams.get('limit')||PAGE_LIMIT);if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>500)throw Object.assign(new Error('الصفحة غير صحيحة'),{status:422});return {offset,limit};}
 async function getList(env,table,fields,u){const {offset,limit}=parsePagination(u);const sort=table==='bookings'?'event_date,start_time,id':'deleted_at DESC,id';const r=await env.DB.prepare(`SELECT ${fields} FROM ${table} ORDER BY ${sort} LIMIT ? OFFSET ?`).bind(limit+1,offset).all();const rows=r.results||[];return response({items:rows.slice(0,limit).map(bookingToApi),nextOffset:rows.length>limit?offset+limit:null});}
 async function createBooking(env,input){const row=validateBooking(input);const conflict=await checkCollisions(env.DB,row);if(conflict.length&&!input.forceConflict)return response({code:'OVERLAP',error:'فيه حجز تاني في نفس التوقيت',conflicts:conflict.map(x=>({name:x.client_name,start:x.start_time,end:x.end_time}))},409);const id=crypto.randomUUID();await env.DB.prepare(insertSQL).bind(...sqlBookingValues(row,id)).run();await env.DB.prepare('INSERT INTO audit_log(action,booking_id) VALUES(?,?)').bind('CREATE',id).run();const saved=await env.DB.prepare(`SELECT ${BOOKING_FIELDS} FROM bookings WHERE id=?`).bind(id).first();return response({booking:bookingToApi(saved)},201);}
@@ -192,6 +216,7 @@ async function handleApi(request,env,u){
   if(method==='GET'&&path==='/api/health')return response({ok:true,service:'genius-bookings'});
   if(!env.DB)return error('لم يتم ربط قاعدة البيانات بعد',503,'SETUP_REQUIRED');
   if(method!=='GET'&&!assertOrigin(request))return error('طلب من مصدر غير موثوق',403,'ORIGIN_MISMATCH');
+  if(method==='POST'&&path==='/api/setup/hash-check')return checkSecretFingerprint(request,env);
   if(method==='POST'&&path==='/api/login')return login(request,env);
   const session=await getSession(request,env);
   if(!session)return error('سجّل دخول الأول',401,'LOGIN_REQUIRED');
