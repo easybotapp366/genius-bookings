@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { pbkdf2Sync, randomBytes } from 'node:crypto';
+import { pbkdf2Sync, randomBytes, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
@@ -69,6 +69,20 @@ test('password setup distinguishes malformed Secret from invalid credentials, an
  const invalid=await api(env,'/api/login','POST',{password:'incorrect'});
  assert.equal(invalid.status,401);
  assert.equal(invalid.data.code,'INVALID_CREDENTIALS');
+});
+
+test('rate-limited setup diagnostic confirms only a hash fingerprint without transmitting password or hash',async()=>{
+ const env=envMock();
+ const fingerprint=createHash('sha256').update(env.ADMIN_PASSWORD_HASH).digest('hex');
+ let r=await api(env,'/api/setup/hash-check','POST',{fingerprint});
+ assert.equal(r.status,200);assert.equal(r.data.code,'SECRET_MATCH');
+ assert.equal(r.setCookie,null);
+ r=await api(env,'/api/setup/hash-check','POST',{fingerprint:'1'.repeat(64)});
+ assert.equal(r.status,409);assert.equal(r.data.code,'SECRET_MISMATCH');
+ r=await api(env,'/api/setup/hash-check','POST',{fingerprint:'bad'});
+ assert.equal(r.status,422);
+ for(let i=1;i<5;i++)assert.equal((await api(env,'/api/setup/hash-check','POST',{fingerprint:'1'.repeat(64)})).status,409);
+ assert.equal((await api(env,'/api/setup/hash-check','POST',{fingerprint})).status,429);
 });
 
 test('create, overlap, update, cancellation, archive and restore with optimistic version',async()=>{
