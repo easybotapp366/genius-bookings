@@ -1,51 +1,75 @@
-# Genius Bookings — database-backed mobile booking manager
+# Genius Bookings — نظام حجوزات خاص للموبايل
 
-A private Arabic booking manager for mobile and desktop using **Cloudflare Workers + D1** (SQLite), not Google Sheets and not GitHub Pages. The GitHub repository contains source code only. Personal client records are kept in the private Cloudflare D1 database.
+تطبيق عربي لإدارة حجوزات 2027 وما بعدها، بواجهة موبايل، **Cloudflare Workers + D1**، وتسجيل دخول بكلمة مرور فقط. لا توجد حاجة إلى Google Sheets أو Google OAuth بعد نقل الحجوزات. **قاعدة البيانات لا تُحفظ على GitHub.**
 
-## Features
-- Responsive right-to-left interface with 2027+ annual/monthly dashboards and Cairo local date.
-- Add, search, edit, reschedule and cancel bookings; checks overlapping times.
-- Deposit, remaining and total value for each booking, summarized in the dashboard.
-- Delete with explicit confirmation and transactional archive; recover an archived booking.
-- Password-based admin login with PBKDF2-SHA256 password verification, HttpOnly/Secure/SameSite cookie, CSRF check, same-origin requests and rate limiting.
-- Optimistic version checking prevents silent edits from another device.
-- Private JSON migration wizard for previous data (max 500 records per batch). The migration JSON must never be committed to Git.
+## الوظائف
 
-## First-time Cloudflare setup
+- تسجيل دخول آمن بكلمة مرور خاصة؛ لا توجد كلمة مرور افتراضية في الكود.
+- إضافة، تعديل، تغيير المواعيد، والحذف مع تأكيد وحفظ نسخة في الأرشيف؛ يمكن استرجاعها.
+- التنبيه لتداخل المواعيد، وترتيب الحجوزات حسب اليوم والساعة.
+- داشبورد العربون والمتبقي، حجوزات النهارده، وإحصائيات الشهور والسنة.
+- إضافة سنة جديدة من الواجهة في ثوانٍ.
+- استيراد آمن بملف خاص، وتصدير نسخة JSON احتياطية لحسابك.
+- يعمل بالموبايل والكمبيوتر؛ الحفظ والاسترجاع من قاعدة D1 وليس ملفات GitHub.
 
-You need a **Cloudflare account** for deployment. The GitHub repo is for source code, but GitHub Pages cannot run the database backend. **Do not deploy this version via GitHub Pages.**
+## مهم قبل النشر
 
-1. Install Node.js 22+ and dependencies using `npm install`.
-2. Log in to Cloudflare: `npx wrangler login` (opens browser).
-3. Create private database: `npx wrangler d1 create genius-bookings-db`.
-4. Copy the `database_id` (UUID) it returns into `wrangler.toml` (replace `REPLACE_WITH_YOUR_D1_DATABASE_ID`). Keep the binding named `DB`.
-5. Initialize the database: `npm run db:remote`.
-6. Generate a random strong admin password (do **not** place it in GitHub or `wrangler.toml`) and run `npm run password:hash` locally. The helper prints a PBKDF2 hash, **not** the password.
-7. Store the hash as a Cloudflare secret: `npx wrangler secret put ADMIN_PASSWORD_HASH`. Paste the generated hash when prompted. No need for Google OAuth credentials.
-8. Publish: `npm run deploy`. Cloudflare shows your `https://...workers.dev` URL. Open it and sign in with your admin password.
+**GitHub Pages لا يمكنه تشغيل قاعدة بيانات أو حماية كلمة مرور من جهة السيرفر.** النسخة الخاصة تعمل على عنوان Cloudflare Worker (HTTPS) الذي يخدم الواجهة والـAPI من نفس الأصل. صفحة GitHub Pages القديمة ستشير إلى تعليمات الانتقال فقط.
 
-### Optional: deploy from GitHub
-Cloudflare dashboard → Workers & Pages → Create → Connect to Git → choose `easybotapp366/genius-bookings`. Deploy command `npx wrangler deploy`. Set up D1 binding `DB` and the `ADMIN_PASSWORD_HASH` secret before going live. Database migrations are a separate controlled step (`npx wrangler d1 migrations apply genius-bookings-db --remote`), not part of every deployment.
+الربط بـ GitHub يتيح تعديل الكود لكنه **لا ينشئ حساب Cloudflare أو قاعدة D1 أو كلمة المرور**. الخطوات التالية تُنفَّذ على حساب Cloudflare. لا ترسل كلمة مرورك في المحادثة أو في GitHub.
 
-**The D1 database and password hash secret cannot be created from a source-code-only GitHub connection.** They must be configured on the Cloudflare account that owns the deployment.
+## تفعيل Cloudflare لأول مرة (من الكمبيوتر أو Cloudflare Dashboard)
 
-## Migrating past bookings
-The app has a **Import old bookings** button in the archive view that accepts a local JSON file with two arrays:
-```json
-{"bookings":[{"id":"BKG-2027-0001","date":"2027-01-01","name":"Example","phone":"01000000000","address":"","brushing":"","start":"15:00","end":"16:00","deposit":1000,"remaining":2500,"status":"Confirmed"}],"archive":[]}
-```
-Create the private JSON from your existing sheet, or enter bookings manually. The server validates it first (`dryRun`) and skips repeated IDs upon re-import. Do not commit the real JSON to GitHub. Existing Google Sheets data remains unchanged unless you choose to migrate it. Protect private backups.
+1. افتح [Cloudflare Dashboard](https://dash.cloudflare.com/). من **Workers & Pages / D1 SQL Database** أنشئ قاعدة باسم `genius-bookings-db` واحصل على **Database ID** (UUID).
+2. افتح [`wrangler.toml`](./wrangler.toml) على GitHub واستبدل `REPLACE_WITH_YOUR_D1_DATABASE_ID` بمعرّف القاعدة الحقيقي. لا تغيّر اسم الـBinding وهو `DB`.
+3. أنشئ الجداول من ملف [`migrations/0001_init.sql`](./migrations/0001_init.sql) باستخدام Wrangler أو D1 Console SQL Editor، بعد التأكد أنك تختار قاعدة Genius الصحيحة.
+4. من Cloudflare **Workers & Pages → Create → Import repository** اربط `easybotapp366/genius-bookings`، واضبط أمر النشر على `npx wrangler deploy`. يُفضّل `npm install` للتبعيات إن طلبها Cloudflare. لا تحتاج `npm run build` لواجهة HTML/CSS/JS الحالية.
+5. بعد نجاح أول Deploy ستحصل على عنوان مثل `https://genius-bookings.<account>.workers.dev`. افتح `<عنوانك>/password-setup.html` **من جهازك الشخصي**، واختر كلمة مرور قوية لا تقل عن 14 حرفًا. الصفحة تولد بصمة PBKDF2 محليًا، بدون إرسال كلمة المرور إلى أي جهة.
+6. في Cloudflare Worker → **Settings → Variables and Secrets → Add Secret** سمِّ السر `ADMIN_PASSWORD_HASH`، والصق **البصمة كاملة** كما خرجت من الصفحة (لا تلصق كلمة المرور نفسها). اضغط Deploy لحفظ السر.
+7. افتح جذر عنوان Worker، وسجّل الدخول بكلمة المرور اللي اخترتها. لا تعمل أي عملية مالية فعلية قبل اختبار حجز واحد تجريبي والتأكد من الحفظ والتعديل والحذف والأرشفة.
+8. في صفحة الأرشيف يوجد زر **استيراد الحجوزات القديمة**: اختر ملف JSON الخاص اللي سيتم تسليمه خارج GitHub، راجع الأعداد واضغط تأكيد الاستيراد. لن تُضاف نفس معرفات الحجوزات مرة ثانية إذا كررت استيراد الملف.
 
-## Development/testing
+> **عند استخدام Cloudflare على الموبايل:** تقدر تولد البصمة من صفحة `password-setup.html` بدل استخدام Terminal. باقي إنشاء D1 وربطها ونشر Worker لازم يتم مرة واحدة من إعدادات Cloudflare، وهي أكثر سهولة من الكمبيوتر إن أمكن.
+
+## طريقة Wrangler من الكمبيوتر (اختيارية)
+
 ```bash
-npm test
+npm install
+npx wrangler login
+npx wrangler d1 create genius-bookings-db
+# ضع database_id الناتج في wrangler.toml أولًا
+npm run db:remote
+npm run deploy
+# بعد النشر: افتح /password-setup.html وولّد بصمة كلمة المرور محليًا
+npx wrangler secret put ADMIN_PASSWORD_HASH
+```
+
+لا تشغّل `db:remote` إلا بعد مراجعة `database_id` الصحيح. ممنوع وضع كلمات المرور أو البيانات الشخصية في `.env` عام أو commits أو Issues.
+
+## نقل بيانات Google Sheets القديمة بشكل خاص
+
+- البيانات الحالية من حساب Genius: ملف Google Sheets منفصل لم يتم حذفه أو تغييره.
+- **لا تضع ملف استيراد العملاء داخل المستودع**. الملف يُفتح من الموبايل داخل الموقع بعد تسجيل الدخول ثم يُرسل مباشرة إلى API القاعدة الخاصة.
+- الملف بصيغة `genius-bookings-import-v1`: `{"bookings":[],"archive":[]}`، مع حقول الاسم/التاريخ/الأوقات والعربون والمتبقي لكل حجز.
+- خطوة الاستيراد الأولى تتحقق من البيانات، وبعد التأكيد تحفظها في D1. الأرشيف يظل أرشيفًا ولا يعود للحجوزات النشطة إلا عند استرجاعه عمدًا.
+- احرص على إعادة تصدير نسخة حديثة من الشيت إن اتضافت حجوزات قبل موعد النقل الفعلي.
+
+## حفظ نسخ احتياطية وملاحظات تشغيل
+
+- زر **تنزيل نسخة احتياطية** من صفحة الأرشيف ينتج JSON خاصًا من قاعدة D1. احتفظ به بعيدًا عن المستودع العام؛ الأرشيف وحده ليس نسخة احتياطية من قاعدة البيانات.
+- في Cloudflare D1 يمكن إدارة النسخ الاحتياطية/الاستعادة حسب إمكانيات حسابك.
+- الحماية الحالية لمستخدم إداري واحد. لو هيستخدمه أكثر من شخص، الأفضل إضافة حسابات منفصلة وصلاحيات و2FA قبل مشاركة كلمة السر.
+- رقم الجوال وأسماء العملاء لا تظهر في ملفات GitHub؛ لكنها تظهر داخل صفحة التطبيق **بعد تسجيل الدخول**.
+- العمليات المتزامنة تستخدم `version` لمنع تعديل صامت من جهاز آخر؛ تداخل المواعيد يُعرض تحذيره، ويمكن للمدير تأكيده عن عمد.
+- العمال `workers.dev` / الدومين HTTPS هما النسخة الإنتاجية؛ **لا تستخدم عنوان GitHub Pages القديم للتسجيل أو حفظ بيانات عملاء**.
+
+## تطوير واختبارات
+
+```bash
+npm test                     # Node 22 + SQLite memory mock (4 automated API suites)
+python tests/test_ui.py       # اختبار واجهة على Chromium/Playwright بمحاكاة API؛ بدون بيانات عملاء
 npm run db:local
 npm run dev
 ```
-For local login testing, store the PBKDF2 hash in `.dev.vars` as `ADMIN_PASSWORD_HASH=...`. `.dev.vars` is ignored by Git and must never be committed. Unit tests use Node 22's built-in `node:sqlite` and do not require live Cloudflare credentials.
 
-## Deployment cautions
-- Never place a password, API key, database export, or client contacts in the public repository.
-- Use the Cloudflare Worker URL (or an HTTPS custom domain), **not** `https://easybotapp366.github.io/genius-bookings/` for the DB-enabled app.
-- Each admin has the same password in this initial single-owner setup; add individual accounts and 2FA if you later need a team.
-- Schedule regular private D1 backups. Deletion archive is a convenience, not a substitute for backups.
+الجداول SQL في `migrations/`. ملف `.gitignore` يستثني مجلد `private-migration/` وملفات `.dev.vars` و `.env` من Git. استخدم `ADMIN_PASSWORD_HASH` فقط كـ **Cloudflare Secret** وليس `vars` عادي. علامة توقيت العمليات: Cloudflare UTC، وعرض تاريخ اليوم في القاهرة عبر الواجهة.
