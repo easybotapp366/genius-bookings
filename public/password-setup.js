@@ -86,3 +86,46 @@ document.getElementById('check-cloudflare').addEventListener('click',async()=>{
    notice.textContent='تعذر الاتصال. تأكد إن آخر نسخة من GitHub اتنشرت على Cloudflare.';
  }finally{button.disabled=false;}
 });
+
+
+document.getElementById('login-verified').addEventListener('click',async()=>{
+ const button=document.getElementById('login-verified');
+ const result=document.getElementById('login-verified-result');
+ const pass=document.getElementById('verify-password').value;
+ const rawHash=document.getElementById('verify-hash').value.trim();
+ result.textContent='';
+ button.disabled=true;
+ try{
+  const parts=rawHash.split('$');
+  if(parts.length!==4||parts[0]!=='pbkdf2_sha256'||!/^[0-9]+$/.test(parts[1]))throw new Error('الصق الـHash الكامل الأول.');
+  const iterations=Number(parts[1]);
+  if(iterations<210000||iterations>2000000||!Number.isSafeInteger(iterations)||!pass)throw new Error('اكتب الباسورد والـHash الصحيح.');
+  const salt=Uint8Array.from(atob(parts[2]),c=>c.charCodeAt(0));
+  const expected=Uint8Array.from(atob(parts[3]),c=>c.charCodeAt(0));
+  if(salt.length<16||expected.length!==32)throw new Error('الـHash غير صالح.');
+  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveBits']);
+  const bits=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations,hash:'SHA-256'},key,256));
+  let difference=0;for(let i=0;i<32;i++)difference|=bits[i]^expected[i];
+  if(difference!==0)throw new Error('الباسورد المكتوب هنا مش مطابق للـHash. مش هنبعت طلب للسيرفر.');
+  result.textContent='✅ التطابق المحلي صحيح. جاري تجربة تسجيل الدخول الحقيقي...';
+  const response=await fetch('/api/login',{
+    method:'POST',
+    credentials:'same-origin',
+    cache:'no-store',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body:JSON.stringify({password:pass})
+  });
+  const data=await response.json().catch(()=>({}));
+  if(response.ok){
+    result.textContent='✅ تم تسجيل الدخول بنجاح. جاري فتح البرنامج...';
+    location.assign('/');
+  }else{
+    result.textContent='التطابق المحلي صحيح، لكن السيرفر رفض تسجيل الدخول: '+(data.code||('HTTP '+response.status))+(data.error?' — '+data.error:'');
+  }
+ }catch(error){
+  result.textContent=error.message||'تعذر إجراء فحص تسجيل الدخول.';
+ }finally{
+  document.getElementById('verify-password').value='';
+  button.disabled=false;
+ }
+});
