@@ -169,6 +169,12 @@ async function checkSecretFingerprint(request, env){
 }
 
 function parsePagination(u){const offset=Number(u.searchParams.get('offset')||0),limit=Number(u.searchParams.get('limit')||PAGE_LIMIT);if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>500)throw Object.assign(new Error('الصفحة غير صحيحة'),{status:422});return {offset,limit};}
+// Lightweight, authenticated revision probe for multi-device auto-sync.
+// Audit IDs only: no customer data leaves the database in this response.
+async function getRevision(env){
+  const row=await env.DB.prepare('SELECT COALESCE(MAX(id),0) AS revision FROM audit_log').first();
+  return response({revision:Number(row?.revision||0)});
+}
 async function getList(env,table,fields,u){const {offset,limit}=parsePagination(u);const sort=table==='bookings'?'event_date,start_time,id':'deleted_at DESC,id';const r=await env.DB.prepare(`SELECT ${fields} FROM ${table} ORDER BY ${sort} LIMIT ? OFFSET ?`).bind(limit+1,offset).all();const rows=r.results||[];return response({items:rows.slice(0,limit).map(bookingToApi),nextOffset:rows.length>limit?offset+limit:null});}
 async function createBooking(env,input){const row=validateBooking(input);const conflict=await checkCollisions(env.DB,row);if(conflict.length&&!input.forceConflict)return response({code:'OVERLAP',error:'فيه حجز تاني في نفس التوقيت',conflicts:conflict.map(x=>({name:x.client_name,start:x.start_time,end:x.end_time}))},409);const id=crypto.randomUUID();await env.DB.prepare(insertSQL).bind(...sqlBookingValues(row,id)).run();await env.DB.prepare('INSERT INTO audit_log(action,booking_id) VALUES(?,?)').bind('CREATE',id).run();const saved=await env.DB.prepare(`SELECT ${BOOKING_FIELDS} FROM bookings WHERE id=?`).bind(id).first();return response({booking:bookingToApi(saved)},201);}
 async function updateBooking(env,id,input){const version=Number(input.version);if(!Number.isInteger(version)||version<1)return error('لازم تحديث الصفحة قبل تعديل الحجز',422,'VERSION_REQUIRED');const old=await env.DB.prepare('SELECT id,version FROM bookings WHERE id=?').bind(id).first();if(!old)return error('الحجز مش موجود',404,'NOT_FOUND');if(old.version!==version)return error('الحجز اتغير من جهاز تاني. حدّث البيانات',409,'STALE_VERSION');const row=validateBooking(input);const conflicts=await checkCollisions(env.DB,row,id);if(conflicts.length&&!input.forceConflict)return response({code:'OVERLAP',error:'فيه حجز تاني في نفس التوقيت',conflicts:conflicts.map(x=>({name:x.client_name,start:x.start_time,end:x.end_time}))},409);
@@ -231,6 +237,7 @@ async function handleApi(request,env,u){
   if(method==='GET'&&path==='/api/me')return response({ok:true,csrf:session.csrf_token,expiresAt:session.expires_at});
   if(method!=='GET'&&!sameCsrf(request,session))return error('رمز حماية الجلسة غير صحيح. حدث الصفحة',403,'CSRF_MISMATCH');
   if(method==='POST'&&path==='/api/logout'){await env.DB.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(session.tokenHash).run();return response({ok:true},200,{'Set-Cookie':sessionCookie('',request,0)});}
+  if(method==='GET'&&path==='/api/revision')return getRevision(env);
   if(method==='GET'&&path==='/api/bookings')return getList(env,'bookings',BOOKING_FIELDS,u);
   if(method==='GET'&&path==='/api/archive')return getList(env,'deleted_bookings',ARCHIVE_FIELDS,u);
   if(method==='POST'&&path==='/api/bookings')return createBooking(env,await jsonBody(request));

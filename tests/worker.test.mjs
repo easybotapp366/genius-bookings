@@ -101,6 +101,44 @@ test('password generators and Node CLI use compatible Cloudflare 100k cost',()=>
  }
 });
 
+test('authenticated revision increments after CRUD and import for other devices',async()=>{
+ const env=envMock();
+ const unauthenticated=await api(env,'/api/revision');
+ assert.equal(unauthenticated.status,401);
+ const {cookie,csrf}=await login(env);
+ const initial=await api(env,'/api/revision','GET',null,cookie);
+ assert.equal(initial.status,200);
+ assert.equal(initial.data.revision,0);
+ assert.equal(initial.setCookie,null);
+ assert.equal(Object.keys(initial.data).join(','),'revision');
+
+ const create=await api(env,'/api/bookings','POST',booking,cookie,csrf);
+ assert.equal(create.status,201);
+ const id=create.data.booking.id;
+ const afterCreate=await api(env,'/api/revision','GET',null,cookie);
+ assert.ok(afterCreate.data.revision>initial.data.revision);
+
+ const edit=await api(env,`/api/bookings/${id}`,'PUT',{...booking,remaining:2200,version:1},cookie,csrf);
+ assert.equal(edit.status,200);
+ const afterEdit=await api(env,'/api/revision','GET',null,cookie);
+ assert.ok(afterEdit.data.revision>afterCreate.data.revision);
+
+ const deleted=await api(env,`/api/bookings/${id}`,'DELETE',{version:2,reason:'ألغى الموعد'},cookie,csrf);
+ assert.equal(deleted.status,200);
+ const afterDelete=await api(env,'/api/revision','GET',null,cookie);
+ assert.ok(afterDelete.data.revision>afterEdit.data.revision);
+
+ const restored=await api(env,`/api/archive/${id}/restore`,'POST',{},cookie,csrf);
+ assert.equal(restored.status,200);
+ const afterRestore=await api(env,'/api/revision','GET',null,cookie);
+ assert.ok(afterRestore.data.revision>afterDelete.data.revision);
+
+ const imported=await api(env,'/api/import','POST',{bookings:[],archive:[]},cookie,csrf);
+ assert.equal(imported.status,200);
+ const afterImport=await api(env,'/api/revision','GET',null,cookie);
+ assert.ok(afterImport.data.revision>afterRestore.data.revision);
+});
+
 test('create, overlap, update, cancellation, archive and restore with optimistic version',async()=>{
  const env=envMock();const {cookie,csrf}=await login(env);
  assert.equal((await api(env,'/api/bookings','POST',booking,cookie)).status,403);

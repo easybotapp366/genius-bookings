@@ -1,6 +1,8 @@
 /* Genius Bookings: private D1-backed booking manager, same-origin session auth. */
 'use strict';
 const CONFIG=Object.freeze({timezone:'Africa/Cairo'});
+// Other logged-in phones see booking edits within approximately 10 seconds.
+const AUTO_SYNC_INTERVAL_MS=10000;
 const MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const STATUS = {Confirmed:'مؤكد',Pending:'قيد التأكيد',Completed:'مكتمل',Cancelled:'ملغي'};
 const $ = s => document.querySelector(s);
@@ -8,7 +10,8 @@ const $$ = s => Array.from(document.querySelectorAll(s));
 const state = {
   csrf:'', authenticated:false, loading:false, rows:[], archive:[], year:2027, month:'all',
   status:'all', todayOnly:false, screen:'dashboard', search:'', archiveSearch:'',
-  editing:null, deleting:null, futureYears: new Set([2027]), toastTimer:null
+  editing:null, deleting:null, futureYears: new Set([2027]), toastTimer:null,
+  revision:null,autoSyncBusy:false,activeRefreshes:0,refreshGeneration:0,autoSyncTimer:null
 };
 const esc = v => String(v??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = v => new Intl.NumberFormat('ar-EG',{style:'currency',currency:'EGP',maximumFractionDigits:0}).format(Number(v)||0);
@@ -67,7 +70,49 @@ function busy(on,label='جاري تحميل البيانات...') {
 }
 function toast(message,isError=false){const x=$('#toast');x.textContent=message;x.classList.toggle('error',isError);x.classList.remove('hidden');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>x.classList.add('hidden'),4300);}
 function isVisible(selector){return !$(selector).classList.contains('hidden');}
-function setOverlay(sel,show){$(sel).classList.toggle('hidden',!show);document.body.style.overflow=$$('.overlay:not(.hidden)').length?'hidden':'';}
+function setOverlay(sel,show){
+  $(sel).classList.toggle('hidden',!show);
+  document.body.style.overflow=$$('.overlay:not(.hidden)').length?'hidden':'';
+  // When a user finishes an edit or closes a confirmation, catch up immediately.
+  if(!show&&['#bookingOverlay','#deleteOverlay','#importOverlay'].includes(sel)){
+    Promise.resolve().then(()=>checkForUpdates()).catch(()=>{});
+  }
+}
+function modalOpen(){return Boolean(document.querySelector('.overlay:not(.hidden)'));}
+function autoSyncAllowed(){
+  return state.authenticated&&!state.loading&&!state.activeRefreshes&&
+    document.visibilityState!=='hidden'&&!modalOpen();
+}
+async function fetchRevision(){
+  const info=await requestApi('/api/revision');
+  const revision=Number(info.revision);
+  if(!Number.isSafeInteger(revision)||revision<0)throw new Error('تعذر التحقق من تحديثات الحجوزات');
+  return revision;
+}
+async function checkForUpdates(){
+  if(state.autoSyncBusy||!autoSyncAllowed())return;
+  state.autoSyncBusy=true;
+  try{
+    const remote=await fetchRevision();
+    if(!autoSyncAllowed())return;
+    if(state.revision===null||remote!==state.revision){
+      const before=state.rows.length,hadLoaded=state.revision!==null;
+      const completed=await refresh(false,{background:true,silent:true});
+      if(completed&&hadLoaded){
+        const added=state.rows.length-before;
+        toast(added>0?'فيه حجز جديد ظهر تلقائيًا ✅':'تم تحديث المواعيد تلقائيًا ✅');
+      }
+    }else{
+      e('#connectionTag','● متصل • تحديث تلقائي');
+      $('#connectionTag').classList.add('online');
+    }
+  }catch(err){
+    if(state.authenticated){
+      e('#connectionTag','● تعذر التحديث • إعادة المحاولة');
+      $('#connectionTag').classList.remove('online');
+    }
+  }finally{state.autoSyncBusy=false;}
+}
 function apiErrorMessage(err){return err?.message||'حصل خطأ أثناء الاتصال بالسيرفر';}
 async function requestApi(path,{method='GET',body}={}){
   const headers={'Accept':'application/json'};
@@ -91,17 +136,34 @@ async function fetchPaged(path){
   }
   throw new Error('عدد السجلات تجاوز الحد المسموح في واجهة العرض. تواصل مع المسؤول.');
 }
-async function refresh(showBusy=true){
+async function refresh(showBusy=true,{background=false,silent=false}={}){
   if(!state.authenticated)return showAuth();
+  const requestGeneration=++state.refreshGeneration;
+  state.activeRefreshes++;
   if(showBusy)busy(true,'جاري تحديث البيانات من قاعدة الحجوزات...');
   try{
+    // Sample the revision BEFORE fetching the records to avoid missing a write
+    // that happens while the snapshot is loading on another phone.
+    const revision=await fetchRevision();
     const [rows,archive]=await Promise.all([fetchPaged('/api/bookings'),fetchPaged('/api/archive')]);
-    state.rows=rows.map(r=>({...r,uid:r.id}));state.archive=archive.map(r=>({...r,uid:r.id}));
+    if(requestGeneration!==state.refreshGeneration||!state.authenticated)return false;
+    if(background&&(state.loading||document.visibilityState==='hidden'||modalOpen()))return false;
+    state.rows=rows.map(r=>({...r,uid:r.id}));
+    state.archive=archive.map(r=>({...r,uid:r.id}));
+    state.revision=revision;
     for(const r of [...state.rows,...state.archive])if(r.date)state.futureYears.add(Number(r.date.slice(0,4)));
-    render();e('#connectionTag','● متصل • قاعدة بيانات خاصة');$('#connectionTag').classList.add('online');
-  }catch(err){toast(apiErrorMessage(err),true);throw err;}finally{if(showBusy)busy(false);}
+    render();
+    e('#connectionTag','● متصل • تحديث تلقائي');
+    $('#connectionTag').classList.add('online');
+    $('#connectionTag').title='التحديث التلقائي كل 10 ثوانٍ أثناء فتح الصفحة. وعند العودة من الخلفية.';
+    return true;
+  }catch(err){if(!silent)toast(apiErrorMessage(err),true);throw err;}
+  finally{
+    state.activeRefreshes--;
+    if(showBusy)busy(false);
+  }
 }
-function showAuth(){setOverlay('#authOverlay',true);$('#connectionTag').classList.remove('online');e('#connectionTag','● تسجيل الدخول مطلوب');}
+function showAuth(){state.refreshGeneration++;state.revision=null;setOverlay('#authOverlay',true);$('#connectionTag').classList.remove('online');e('#connectionTag','● تسجيل الدخول مطلوب');}
 function hideAuth(){setOverlay('#authOverlay',false);$('#authError').classList.add('hidden');}
 async function checkAuth(){
   try{
@@ -120,7 +182,7 @@ async function login(event){
 async function logout(){
   if(!state.authenticated)return showAuth();
   try{await requestApi('/api/logout',{method:'POST',body:{}});}catch{}
-  state.authenticated=false;state.csrf='';state.rows=[];state.archive=[];render();showAuth();toast('تم تسجيل الخروج');
+  state.authenticated=false;state.csrf='';state.rows=[];state.archive=[];state.revision=null;state.refreshGeneration++;render();showAuth();toast('تم تسجيل الخروج');
 }
 function activeRows(){return state.rows.filter(x=>x.date&&x.name);}
 function yearRows(){return activeRows().filter(x=>currentDateYear(x.date)===Number(state.year));}
@@ -337,6 +399,11 @@ function init(){
   $('#cancelDelete').addEventListener('click',()=>{setOverlay('#deleteOverlay',false);state.deleting=null;});
   $('#importDataBtn').addEventListener('click',openImport);$('#importFile').addEventListener('change',chooseImport);
   $('#closeImport').addEventListener('click',closeImport);$('#cancelImport').addEventListener('click',closeImport);$('#confirmImport').addEventListener('click',confirmImport);
+  // Browser timers may pause in the background; resync on return or reconnect.
+  state.autoSyncTimer=window.setInterval(()=>{checkForUpdates().catch(()=>{});},AUTO_SYNC_INTERVAL_MS);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdates().catch(()=>{});});
+  window.addEventListener('focus',()=>checkForUpdates().catch(()=>{}));
+  window.addEventListener('online',()=>checkForUpdates().catch(()=>{}));
   render();checkAuth().catch(()=>showAuth());
 }
 window.addEventListener('DOMContentLoaded',init);
