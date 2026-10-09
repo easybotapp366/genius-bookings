@@ -21,9 +21,9 @@
 ## تفعيل Cloudflare لأول مرة (من الكمبيوتر أو Cloudflare Dashboard)
 
 1. افتح [Cloudflare Dashboard](https://dash.cloudflare.com/). من **Workers & Pages / D1 SQL Database** أنشئ قاعدة باسم `genius-bookings-db` واحصل على **Database ID** (UUID).
-2. افتح [`wrangler.toml`](./wrangler.toml) على GitHub واستبدل `REPLACE_WITH_YOUR_D1_DATABASE_ID` بمعرّف القاعدة الحقيقي. لا تغيّر اسم الـBinding وهو `DB`.
-3. أنشئ الجداول من ملف [`migrations/0001_init.sql`](./migrations/0001_init.sql) باستخدام Wrangler أو D1 Console SQL Editor، بعد التأكد أنك تختار قاعدة Genius الصحيحة.
-4. من Cloudflare **Workers & Pages → Create → Import repository** اربط `easybotapp366/genius-bookings`، واضبط أمر النشر على `npx wrangler deploy`. يُفضّل `npm install` للتبعيات إن طلبها Cloudflare. لا تحتاج `npm run build` لواجهة HTML/CSS/JS الحالية.
+2. **تم بالفعل ضبط Database ID** في [`wrangler.toml`](./wrangler.toml) لقاعدة `genius-bookings-db`، والـBinding اسمه `DB`. تأكد أن القاعدة موجودة في **نفس حساب Cloudflare** الذي ستنشر عليه.
+3. أنشئ الجداول من ملف [`migrations/0001_init.sql`](./migrations/0001_init.sql) باستخدام Wrangler (`npx wrangler d1 migrations apply genius-bookings-db --remote`) أو D1 Console SQL Editor، بعد التأكد أنك تختار قاعدة Genius الصحيحة. **لا تكرر التنفيذ يدويًا ثم تطبق نفس الـmigration دون مراجعة**؛ إذا أنشأتها من SQL Editor مباشرة، راجع سجل المايجريشن قبل استخدام Wrangler.
+4. من Cloudflare **Workers & Pages → Create → Import repository** اربط `easybotapp366/genius-bookings`، واختار نوع **Worker (مش Pages)** واسم `genius-bookings`، واضبط أمر النشر على `npx wrangler deploy`، والفرع `main`، ومسار المشروع `/`. نفّذ تثبيت التبعيات (`npm install`) إن طلب Cloudflare. لا تحتاج `npm run build` لواجهة HTML/CSS/JS الحالية. يرجى تفعيل تطبيق GitHub لـCloudflare إن ظهر طلب الإذن.
 5. بعد نجاح أول Deploy ستحصل على عنوان مثل `https://genius-bookings.<account>.workers.dev`. افتح `<عنوانك>/password-setup.html` **من جهازك الشخصي**، واختر كلمة مرور قوية لا تقل عن 14 حرفًا. الصفحة تولد بصمة PBKDF2 محليًا، بدون إرسال كلمة المرور إلى أي جهة.
 6. في Cloudflare Worker → **Settings → Variables and Secrets → Add Secret** سمِّ السر `ADMIN_PASSWORD_HASH`، والصق **البصمة كاملة** كما خرجت من الصفحة (لا تلصق كلمة المرور نفسها). اضغط Deploy لحفظ السر.
 7. افتح جذر عنوان Worker، وسجّل الدخول بكلمة المرور اللي اخترتها. لا تعمل أي عملية مالية فعلية قبل اختبار حجز واحد تجريبي والتأكد من الحفظ والتعديل والحذف والأرشفة.
