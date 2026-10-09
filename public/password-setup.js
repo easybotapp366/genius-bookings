@@ -27,3 +27,30 @@ document.getElementById('copy').addEventListener('click',async()=>{
  try{await navigator.clipboard.writeText(textarea.value);message.textContent='تم النسخ. الصقها في Cloudflare Secret فقط.';}
  catch{textarea.select();message.textContent='انسخ القيمة المحددة يدويًا.';}
 });
+
+
+document.getElementById('verify-form').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const notice=document.getElementById('verify-notice');
+ const password=document.getElementById('verify-password').value;
+ const stored=document.getElementById('verify-hash').value.trim();
+ notice.textContent='جاري التحقق على جهازك...';
+ const p=stored.split('$');
+ if(p.length!==4||p[0]!=='pbkdf2_sha256'||p[1]!=='310000'){
+  notice.textContent='بصمة غير صالحة. لازم تبدأ بـ pbkdf2_sha256$310000$.';
+  return;
+ }
+ try{
+  const salt=Uint8Array.from(atob(p[2]),c=>c.charCodeAt(0));
+  const expected=Uint8Array.from(atob(p[3]),c=>c.charCodeAt(0));
+  if(salt.length<16||expected.length!==32)throw new Error('bad format');
+  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);
+  const actual=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:310000,hash:'SHA-256'},key,256));
+  let difference=0;
+  for(let i=0;i<actual.length;i++)difference|=actual[i]^expected[i];
+  notice.textContent=difference===0?'✅ كلمة المرور تطابق هذه البصمة. انسخها كاملة إلى Cloudflare Secret ثم احفظها.':'❌ كلمة المرور لا تطابق البصمة. ولّد بصمة جديدة من نفس كلمة المرور.';
+ }catch{
+  notice.textContent='البصمة غير صالحة أو مش منسوخة كاملة. أعد توليدها.';
+ }
+ document.getElementById('verify-password').value='';
+});
